@@ -232,7 +232,7 @@ C4Context
     Person(reconAnalyst, "Recon Analyst", "Resolves daily reconciliation breaks.")
     Person(opsAdmin, "Ops Admin", "Manages users, audits activity.")
     Person(complianceUser, "Compliance Officer", "Reads audit log + reports only.")
-
+ 
     System(reconx, "ReconX", "Internal trade reconciliation platform. Auto-matches internal vs external trade records, surfaces breaks, tracks resolution SLAs.")
 
     System_Ext(internalOMS, "Internal OMS", "Source of internal trade records (intra-day Kafka feed).")

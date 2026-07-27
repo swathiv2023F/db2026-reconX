@@ -92,12 +92,22 @@ public final class FXTrade implements TradeType {
         public Builder counterpartyId(long v)      { this.counterpartyId = v; return this; }
 
         public FXTrade build() {
-            // TODO(TICKET-ADV020):
+            // TODO(TICKET-ADV020): DONE
             //   - Objects.requireNonNull each required field.
             //   - ccy1 must differ from ccy2 (IllegalStateException otherwise).
             //   - fxRate must be > 0.
             //   - return new FXTrade(this).
-            throw new UnsupportedOperationException("TICKET-ADV020");
+            // throw new UnsupportedOperationException("TICKET-ADV020");
+            Objects.requireNonNull(tradeRef,     "tradeRef");
+            Objects.requireNonNull(ccy1,         "ccy1");
+            Objects.requireNonNull(ccy2,         "ccy2");
+            Objects.requireNonNull(notionalCcy1, "notionalCcy1");
+            Objects.requireNonNull(fxRate,       "fxRate");
+            Objects.requireNonNull(side,         "side");
+            Objects.requireNonNull(tradeDate,    "tradeDate");
+            if (ccy1.equals(ccy2)) throw new IllegalStateException("ccy1 and ccy2 must differ");
+            if (fxRate.signum() <= 0) throw new IllegalStateException("fxRate must be > 0");
+            return new FXTrade(this);
         }
     }
 }

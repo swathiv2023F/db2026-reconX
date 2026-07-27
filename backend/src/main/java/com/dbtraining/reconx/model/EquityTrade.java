@@ -105,12 +105,22 @@ public final class EquityTrade implements TradeType {
         public Builder counterpartyId(long v)         { this.counterpartyId = v;  return this; }
 
         public EquityTrade build() {
-            // TODO(TICKET-ADV019):
-            //   - Objects.requireNonNull each required field (tradeRef, instrumentSymbol,
-            //     quantity, price, currency, side, tradeDate).
-            //   - quantity and price must be > 0 (IllegalStateException otherwise).
-            //   - return new EquityTrade(this).
-            throw new UnsupportedOperationException("TICKET-ADV019");
+            Objects.requireNonNull(tradeRef, "tradeRef is required");
+            Objects.requireNonNull(instrumentSymbol, "instrumentSymbol is required");
+            Objects.requireNonNull(quantity, "quantity is required");
+            Objects.requireNonNull(price, "price is required");
+            Objects.requireNonNull(currency, "currency is required");
+            Objects.requireNonNull(side, "side is required");
+            Objects.requireNonNull(tradeDate, "tradeDate is required");
+
+            if (quantity.signum() <= 0) {
+                throw new IllegalStateException("quantity must be positive");
+            }
+            if (price.signum() <= 0) {
+                throw new IllegalStateException("price must be positive");
+            }
+
+            return new EquityTrade(this);
         }
     }
 }

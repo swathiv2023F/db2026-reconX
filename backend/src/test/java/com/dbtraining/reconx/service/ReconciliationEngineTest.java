@@ -2,7 +2,11 @@ package com.dbtraining.reconx.service;
 
 import com.dbtraining.reconx.dto.ReconResult;
 import com.dbtraining.reconx.model.*;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,45 +28,88 @@ class ReconciliationEngineTest {
     private final ReconciliationEngine engine = new ReconciliationEngine();
 
     @Test
+    @DisplayName("two identical EquityTrades + EXACT rule -> one ReconResult with status MATCHED")
     void testReconcile_exactMatch_returnsMatched() {
-        // TICKET-ADV040: two identical EquityTrades + EXACT rule -> MATCHED
         EquityTrade internal = equity("EQU-20260603-0001", "100.00", "1000");
         EquityTrade external = equity("EQU-20260603-0001", "100.00", "1000");
 
-        List<ReconResult> out = engine.reconcile(List.of(internal), List.of(external), ReconciliationRule.EXACT);
+        // when
+        List<ReconResult> out = engine.reconcile(
+                List.of(internal),
+                List.of(external),
+                ReconciliationRule.EXACT
+        );
 
+        // then
         assertThat(out).hasSize(1);
-        assertThat(out.get(0).status()).isEqualTo(ReconResult.Status.MATCHED);
+        assertThat(out.get(0).status())
+                .isEqualTo(ReconResult.Status.MATCHED);
     }
 
-    @Test
-    void testReconcile_priceTolerance_withinThreshold() {
-        // TICKET-ADV041: prices 100.00 vs 100.50 + PRICE_TOLERANCE_1PCT -> MATCHED
+    @ParameterizedTest(name = "price diff {0} stays within 1% tolerance -> MATCHED")
+    @ValueSource(strings = {"0.10", "0.50", "0.99"})
+    void testReconcile_priceTolerance_withinThreshold(String diff) {
+        // given
         EquityTrade internal = equity("EQU-20260603-0002", "100.00", "1000");
-        EquityTrade external = equity("EQU-20260603-0002", "100.50", "1000");
 
-        List<ReconResult> out = engine.reconcile(List.of(internal), List.of(external),
-                ReconciliationRule.PRICE_TOLERANCE_1PCT);
+        BigDecimal externalPrice =
+                new BigDecimal("100.00").add(new BigDecimal(diff));
 
-        assertThat(out.get(0).status()).isEqualTo(ReconResult.Status.MATCHED);
+        EquityTrade external = equity(
+                "EQU-20260603-0002",
+                externalPrice.toPlainString(),
+                "1000"
+        );
+
+        // when
+        List<ReconResult> out = engine.reconcile(
+                List.of(internal),
+                List.of(external),
+                ReconciliationRule.PRICE_TOLERANCE_1PCT
+        );
+
+        // then
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0).status())
+                .isEqualTo(ReconResult.Status.MATCHED);
     }
 
     @Test
+    @DisplayName("internal trade with no external counterpart -> status BREAK, discrepancyType = \"MISSING_EXTERNAL\"")
     void testReconcile_missingCounterpartyTrade_returnsBreak() {
-        // TICKET-ADV042: internal trade with no external counterpart -> BREAK + MISSING_EXTERNAL
+        // given
         EquityTrade internal = equity("EQU-20260603-0003", "100.00", "1000");
 
-        List<ReconResult> out = engine.reconcile(List.of(internal), List.of(), ReconciliationRule.EXACT);
+        // when
+        List<ReconResult> out = engine.reconcile(
+                List.of(internal),
+                List.of(),
+                ReconciliationRule.EXACT
+        );
 
-        assertThat(out.get(0).status()).isEqualTo(ReconResult.Status.BREAK);
-        assertThat(out.get(0).discrepancyType()).isEqualTo("MISSING_EXTERNAL");
+        // then
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0).status())
+                .isEqualTo(ReconResult.Status.BREAK);
+        assertThat(out.get(0).discrepancyType())
+                .isEqualTo("MISSING_EXTERNAL");
     }
 
     @Test
+    @DisplayName("empty internal + empty external -> reconcile returns an empty list.")
     void testReconcile_emptyInternal_returnsEmpty() {
-        // TICKET-ADV047: empty/null internal -> return empty list, no exception
-        assertThat(engine.reconcile(List.of(), List.of(), ReconciliationRule.EXACT)).isEmpty();
-        assertThat(engine.reconcile(null, List.of(), ReconciliationRule.EXACT)).isEmpty();
+        // given
+        List<TradeType> internal = List.of();
+        List<TradeType> external = List.of();
+
+        // when
+        List<ReconResult> out = engine.reconcile(
+                internal,
+                external,
+                ReconciliationRule.EXACT
+        );
+        // then
+        assertThat(out).isEmpty();
     }
 
     private EquityTrade equity(String ref, String price, String qty) {

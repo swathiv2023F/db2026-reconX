@@ -40,7 +40,6 @@ class ReconciliationEngineTest {
                 .isEqualTo(ReconResult.Status.MATCHED);
     }
 
-    @Test
     @ParameterizedTest(name = "price diff {0} stays within 1% tolerance -> MATCHED")
     @ValueSource(strings = {"0.10", "0.50", "0.99"})
     void testReconcile_priceTolerance_withinThreshold(String diff) {
@@ -70,16 +69,41 @@ class ReconciliationEngineTest {
     }
 
     @Test
+    @DisplayName("internal trade with no external counterpart -> status BREAK, discrepancyType = \"MISSING_EXTERNAL\"")
     void testReconcile_missingCounterpartyTrade_returnsBreak() {
-        // TODO(TICKET-ADV042): internal trade with no external counterpart -> status BREAK,
-        //                     discrepancyType = "MISSING_EXTERNAL".
-        org.junit.jupiter.api.Assertions.fail("TICKET-ADV042 not implemented yet");
+        // given
+        EquityTrade internal = equity("EQU-20260603-0003", "100.00", "1000");
+
+        // when
+        List<ReconResult> out = engine.reconcile(
+                List.of(internal),
+                List.of(),
+                ReconciliationRule.EXACT
+        );
+
+        // then
+        assertThat(out).hasSize(1);
+        assertThat(out.get(0).status())
+                .isEqualTo(ReconResult.Status.BREAK);
+        assertThat(out.get(0).discrepancyType())
+                .isEqualTo("MISSING_EXTERNAL");
     }
 
     @Test
+    @DisplayName("empty internal + empty external -> reconcile returns an empty list.")
     void testReconcile_emptyInternal_returnsEmpty() {
-        // TODO(TICKET-ADV040): empty internal + empty external -> reconcile returns an empty list.
-        org.junit.jupiter.api.Assertions.fail("TICKET-ADV040 not implemented yet");
+        // given
+        List<TradeType> internal = List.of();
+        List<TradeType> external = List.of();
+
+        // when
+        List<ReconResult> out = engine.reconcile(
+                internal,
+                external,
+                ReconciliationRule.EXACT
+        );
+        // then
+        assertThat(out).isEmpty();
     }
 
     private EquityTrade equity(String ref, String price, String qty) {

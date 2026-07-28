@@ -15,7 +15,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * TICKET-ADV040 / ADV041 / ADV042 — TDD: write the test FIRST, then the impl.
+ * TICKET-ADV040 / ADV041 / ADV042 / ADV047 — TDD tests for ReconciliationEngine.
+ *
+ * Tests cover:
+ * - Exact match (ADV040)
+ * - Price tolerance match (ADV041)
+ * - Missing external trade -> BREAK (ADV042)
+ * - Empty internal -> empty result (ADV047)
  */
 class ReconciliationEngineTest {
 

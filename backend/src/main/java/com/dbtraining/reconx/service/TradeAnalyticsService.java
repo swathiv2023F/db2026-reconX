@@ -2,6 +2,7 @@ package com.dbtraining.reconx.service;
 
 import com.dbtraining.reconx.model.EquityTrade;
 import com.dbtraining.reconx.model.TradeType;
+import com.dbtraining.reconx.model.Side;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -25,13 +26,21 @@ public class TradeAnalyticsService {
         if (trades == null || trades.isEmpty()) {
             return Map.of();
         }
-        
-        return trades.stream().collect(
-            Collectors.groupingBy(this::counterpartyIdOf,
-              Collectors.collectingAndThen(Collectors.toList(), list -> new NotionalSummary(
-                  list.size(),
-                  list.stream().map(t -> t.notional().amount()).reduce(BigDecimal.ZERO, BigDecimal::add))))).
 
+        return trades.stream().collect(
+            Collectors.groupingBy(
+                this::counterpartyIdOf,
+                Collectors.collectingAndThen(
+                    Collectors.toList(),
+                    list -> new NotionalSummary(
+                        list.size(),
+                        list.stream()
+                            .map(t -> t.notional().amount())
+                            .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    )
+                )
+            )
+        );
     }
 
     /**
@@ -42,15 +51,28 @@ public class TradeAnalyticsService {
         if (equityTrades == null || equityTrades.isEmpty()) {
             return Map.of();
         }
-        return equityTrades.stream().collect(Collectors.groupingBy(EquityTrade::instrumentSymbol, Collectors.collectingAndThen(Collectors.toList(), list -> {
-            BigDecimal totalQty = list.stream().map(EquityTrade::quantity).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            BigDecimal totalPriceQty = list.stream().map(t -> t.price().multiply(t.quantity())).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return equityTrades.stream().collect(
+            Collectors.groupingBy(
+                EquityTrade::instrumentSymbol,
+                Collectors.collectingAndThen(
+                    Collectors.toList(),
+                    list -> {
+                        BigDecimal totalQty = list.stream()
+                            .map(EquityTrade::quantity)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-            return totalQty.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO : totalPriceQty.divide(totalQty, 6, RoundingMode.HALF_UP);
-        }
-        )));
+                        BigDecimal totalPriceQty = list.stream()
+                            .map(t -> t.price().multiply(t.quantity()))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+                        return totalQty.compareTo(BigDecimal.ZERO) == 0
+                            ? BigDecimal.ZERO
+                            : totalPriceQty.divide(totalQty, 6, RoundingMode.HALF_UP);
+                    }
+                )
+            )
+        );
     }
 
     /** TICKET-ADV036 — P&L per instrument symbol (sign by Side). */
@@ -60,8 +82,14 @@ public class TradeAnalyticsService {
         }
 
         return equityTrades.stream().collect(
-            Collectors.groupingBy(EquityTrade::instrumentSymbol,
-                Collectors.mapping(this::pnl, Collectors.reducing(BigDecimal.ZERO, BigDecimal::add))));
+            Collectors.groupingBy(
+                EquityTrade::instrumentSymbol,
+                Collectors.mapping(
+                    this::pnl,
+                    Collectors.reducing(BigDecimal.ZERO, BigDecimal::add)
+                )
+            )
+        );
     }
 
     private BigDecimal pnl(EquityTrade t) {
@@ -71,9 +99,9 @@ public class TradeAnalyticsService {
 
     private long counterpartyIdOf(TradeType t) {
         return switch (t) {
-            case EquityTrade e                                 -> e.counterpartyId();
-            case com.dbtraining.reconx.model.FXTrade fx        -> fx.counterpartyId();
-            case com.dbtraining.reconx.model.BondTrade b       -> b.counterpartyId();
+            case EquityTrade e -> e.counterpartyId();
+            case com.dbtraining.reconx.model.FXTrade fx -> fx.counterpartyId();
+            case com.dbtraining.reconx.model.BondTrade b -> b.counterpartyId();
             case com.dbtraining.reconx.model.DerivativeTrade d -> d.counterpartyId();
         };
     }

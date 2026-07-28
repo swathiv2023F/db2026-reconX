@@ -1,6 +1,10 @@
 package com.dbtraining.reconx.service;
 
 import com.dbtraining.reconx.dto.ReconResult;
+import com.dbtraining.reconx.model.BondTrade;
+import com.dbtraining.reconx.model.DerivativeTrade;
+import com.dbtraining.reconx.model.EquityTrade;
+import com.dbtraining.reconx.model.FXTrade;
 import com.dbtraining.reconx.model.ReconciliationRule;
 import com.dbtraining.reconx.model.TradeType;
 import io.micrometer.core.annotation.Timed;
@@ -39,48 +43,92 @@ public class ReconciliationEngine {
     public List<ReconResult> reconcile(List<TradeType> internal,
                                        List<TradeType> external,
                                        ReconciliationRule rule) {
-        // TODO(TICKET-ADV033): build a Map<tradeRef, TradeType> from `external`
-        //   (O(1) lookups beat O(n*m) nested iteration), then parallelStream
-        //   over `internal` and call matchOne(in, externalByRef.get(...), rule)
-        //   for each. Guard against null/empty inputs (TICKET-ADV047).
-        //   HINT:
-        //     Map<String, TradeType> externalByRef = external.stream()
-        //         .collect(Collectors.toMap(t -> t.tradeRef().value(), Function.identity(), (a, b) -> a));
-        //     return internal.parallelStream()
-        //         .map(in -> matchOne(in, externalByRef.get(in.tradeRef().value()), rule))
-        //         .toList();
-        throw new UnsupportedOperationException("TICKET-ADV033");
+        // TICKET-ADV047: guard against null/empty inputs
+        if (internal == null || internal.isEmpty()) return List.of();
+
+        // TICKET-ADV033: index external trades by tradeRef for O(1) lookup
+        // (a, b) -> a merge function handles duplicate refs without throwing
+        Map<String, TradeType> externalByRef = (external == null ? List.<TradeType>of() : external)
+                .stream()
+                .collect(Collectors.toMap(t -> t.tradeRef().value(), Function.identity(), (a, b) -> a));
+
+        // TICKET-ADV033: parallelStream over internals, match each one
+        return internal.parallelStream()
+                .map(in -> matchOne(in, externalByRef.get(in.tradeRef().value()), rule))
+                .toList();
     }
 
     /**
      * TICKET-ADV037 — split by counterparty, reconcile each batch concurrently,
      * combine into a single result list. Caller passes one external feed per
      * counterparty (typical real-world shape).
+     *
+     * Each counterparty's reconcile call runs on a thread from the JVM common
+     * ForkJoinPool. Results are merged via CompletableFuture.allOf and
+     * thenApply. The merged result size equals the sum of per-counterparty
+     * input sizes.
      */
     public CompletableFuture<List<ReconResult>> reconcileByCounterparty(
             Map<Long, List<TradeType>> internalByCp,
             Map<Long, List<TradeType>> externalByCp,
             ReconciliationRule rule) {
-        // TODO(TICKET-ADV037): for each counterparty key in internalByCp launch a
-        //   CompletableFuture.supplyAsync(() -> reconcile(...)). Combine via
-        //   CompletableFuture.allOf(...).thenApply(v -> futures.stream()
-        //       .flatMap(f -> f.join().stream()).toList()).
-        throw new UnsupportedOperationException("TICKET-ADV037");
+
+        // Launch one CompletableFuture per counterparty
+        List<CompletableFuture<List<ReconResult>>> futures = internalByCp.entrySet().stream()
+                .map(e -> CompletableFuture.supplyAsync(() ->
+                        reconcile(e.getValue(),
+                                externalByCp.getOrDefault(e.getKey(), List.of()),
+                                rule)))
+                .toList();
+
+        // allOf waits for every future, thenApply flatMaps results into one list
+        return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
+                .thenApply(v -> futures.stream()
+                        .flatMap(f -> f.join().stream())
+                        .toList());
     }
 
+    /**
+     * Match a single internal trade against its external counterpart.
+     *
+     * @param internal the internal trade record
+     * @param external the matching external trade, or null if not found
+     * @param rule     the reconciliation rule to apply
+     * @return MATCHED if external exists and matches, BREAK otherwise
+     */
     private ReconResult matchOne(TradeType internal, TradeType external, ReconciliationRule rule) {
-        // TODO(TICKET-ADV033): if external is null return ReconResult.breakResult(ref, "MISSING_EXTERNAL", ...).
-        //   Otherwise pull priceQty() for both sides, compare via rule.matches(...),
-        //   return ReconResult.matched(ref) or breakResult(ref, "VALUE_MISMATCH", details).
-        throw new UnsupportedOperationException("TICKET-ADV033");
+        String ref = internal.tradeRef().value();
+
+        // TICKET-ADV047: no matching external trade -> BREAK
+        if (external == null) {
+            return ReconResult.breakResult(ref, "MISSING_EXTERNAL",
+                    "No external trade found for " + ref);
+        }
+
+        // TICKET-ADV033: compare price/quantity via the rule
+        BigDecimal[] iPair = priceQty(internal);
+        BigDecimal[] ePair = priceQty(external);
+
+        if (rule.matches(iPair[0], iPair[1], ePair[0], ePair[1])) {
+            return ReconResult.matched(ref);
+        }
+
+        // TICKET-ADV047: mismatch -> BREAK with VALUE_MISMATCH
+        return ReconResult.breakResult(ref, "VALUE_MISMATCH",
+                "internal=%s/%s external=%s/%s".formatted(iPair[0], iPair[1], ePair[0], ePair[1]));
     }
 
-    /** TICKET-ADV018 — exhaustive switch over the sealed hierarchy. */
+    /**
+     * TICKET-ADV018 — Extract price and quantity from any concrete TradeType
+     * via an exhaustive switch over the sealed hierarchy. The compiler enforces
+     * that every permitted subtype has a case.
+     */
     private BigDecimal[] priceQty(TradeType t) {
-        // TODO(TICKET-ADV018): switch over the sealed TradeType hierarchy
-        //   (EquityTrade, FXTrade, BondTrade, DerivativeTrade) and return a
-        //   BigDecimal[]{price, qty}. The compiler enforces exhaustiveness —
-        //   omit a case and the build fails.
-        throw new UnsupportedOperationException("TICKET-ADV018");
+        return switch (t) {
+            case EquityTrade e     -> new BigDecimal[]{e.price(), e.quantity()};
+            case FXTrade fx        -> new BigDecimal[]{fx.fxRate(), fx.notionalCcy1()};
+            case BondTrade b       -> new BigDecimal[]{b.couponRate(), b.faceValue()};
+            case DerivativeTrade d -> new BigDecimal[]{d.strike(), d.quantity()};
+        };
     }
 }

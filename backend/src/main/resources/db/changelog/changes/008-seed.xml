@@ -46,9 +46,6 @@
     </changeSet>
 
     <changeSet id="008-seed-users" author="trainer">
-        <!-- Real BCrypt hashes (cost=10) for admin123 / trader123 / viewer123 / recon123.
-             Generated via: htpasswd -bnBC 10 "" <pw> | tr -d ':\n'
-             Spring Security's BCryptPasswordEncoder accepts both $2a$ and $2y$ prefixes. -->
         <insert tableName="users">
             <column name="email" value="admin@db.com"/>
             <column name="password_hash" value="$2y$10$L9iP3BfsBS2LbVJRfc86TuWnJvP.AohjX3PNLwdtjlZfyB7YSp87C"/>
@@ -71,6 +68,73 @@
         </insert>
         <rollback>
             <sql>DELETE FROM users;</sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ADV017 — Seed 500 trades (H2/dev profile: uses SYSTEM_RANGE) -->
+    <changeSet id="008-seed-trades-h2" author="trainer">
+        <preConditions onFail="MARK_RAN">
+            <dbms type="h2"/>
+        </preConditions>
+        <comment>Seed 500 trades (H2 dialect using SYSTEM_RANGE)</comment>
+        <sql splitStatements="false">
+            INSERT INTO trades (trade_ref, instrument_id, counterparty_id, asset_class, side, quantity, price, trade_date, status)
+            SELECT
+                'TRD-2026-' || LPAD(n::TEXT, 6, '0')                     AS trade_ref,
+                1 + (n % 15)                                              AS instrument_id,
+                1 + (n % 10)                                              AS counterparty_id,
+                (SELECT asset_class FROM instruments WHERE id = 1 + (n % 15)) AS asset_class,
+                (ARRAY['BUY','SELL'])[1 + (n % 2)]                       AS side,
+                ROUND((RANDOM() * 10000 + 1)::NUMERIC, 4)                 AS quantity,
+                ROUND((RANDOM() * 500 + 1)::NUMERIC, 4)                   AS price,
+                DATE '2026-04-01' + (n % 120) * INTERVAL '1 day'          AS trade_date,
+                (ARRAY['PENDING','MATCHED','MATCHED','MATCHED','UNMATCHED','DISPUTED'])[1 + (n % 6)] AS status
+            FROM SYSTEM_RANGE(1, 500) AS n;
+        </sql>
+        <rollback>
+            <sql>DELETE FROM trades;</sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ADV017 — Seed 500 trades (PostgreSQL profile: uses generate_series) -->
+    <changeSet id="008-seed-trades-postgres" author="trainer">
+        <preConditions onFail="MARK_RAN">
+            <dbms type="postgresql"/>
+        </preConditions>
+        <comment>Seed 500 trades (PostgreSQL dialect using generate_series)</comment>
+        <sql splitStatements="false">
+            INSERT INTO trades (trade_ref, instrument_id, counterparty_id, asset_class, side, quantity, price, trade_date, status)
+            SELECT
+                'TRD-2026-' || LPAD(n::TEXT, 6, '0')                     AS trade_ref,
+                1 + (n % 15)                                              AS instrument_id,
+                1 + (n % 10)                                              AS counterparty_id,
+                (SELECT asset_class FROM instruments WHERE id = 1 + (n % 15)) AS asset_class,
+                (ARRAY['BUY','SELL'])[1 + (n % 2)]                       AS side,
+                ROUND((RANDOM() * 10000 + 1)::NUMERIC, 4)                 AS quantity,
+                ROUND((RANDOM() * 500 + 1)::NUMERIC, 4)                   AS price,
+                DATE '2026-04-01' + (n % 120) * INTERVAL '1 day'          AS trade_date,
+                (ARRAY['PENDING','MATCHED','MATCHED','MATCHED','UNMATCHED','DISPUTED'])[1 + (n % 6)] AS status
+            FROM generate_series(1, 500) AS n;
+        </sql>
+        <rollback>
+            <sql>DELETE FROM trades;</sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ADV017 — Seed recon_breaks for UNMATCHED and DISPUTED trades -->
+    <changeSet id="008-seed-recon-breaks" author="trainer">
+        <comment>Seed recon_breaks for unmatched/disputed trades (~30 rows)</comment>
+        <sql splitStatements="false">
+            INSERT INTO recon_breaks (trade_id, discrepancy_type, status)
+            SELECT id,
+                   (ARRAY['PRICE_MISMATCH','QUANTITY_MISMATCH','DATE_MISMATCH'])[1 + (id % 3)],
+                   'OPEN'
+            FROM trades
+            WHERE status IN ('UNMATCHED','DISPUTED')
+            LIMIT 30;
+        </sql>
+        <rollback>
+            <sql>DELETE FROM recon_breaks;</sql>
         </rollback>
     </changeSet>
 

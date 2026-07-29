@@ -52,5 +52,5 @@ public class MdcFilter implements Filter {
     private static String header(HttpServletRequest request, String headerName) {
         String headerValue = request.getHeader(headerName);
         return headerValue != null ? headerValue : "";
-    }.
+    };
 }

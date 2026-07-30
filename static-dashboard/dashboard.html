@@ -11,6 +11,12 @@ TICKET-ADV100 — ARIA roles + aria-live for the trade feed
   <meta charset="utf-8" />
   <title>ReconX (static) — Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script>
+    (function () {
+      var saved = localStorage.getItem('reconx-theme') || 'light';
+      document.documentElement.dataset.theme = saved;
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -41,6 +47,9 @@ TICKET-ADV100 — ARIA roles + aria-live for the trade feed
         <article class="stat-card"><h3>Matched</h3><p>105</p></article>
         <article class="stat-card stat-card--warn"><h3>Open breaks</h3><p>15</p></article>
         <article class="stat-card"><h3>Notional</h3><p>$24.3M</p></article>
+      </div>
+      <div class="alert--danger" role="alert">
+        &#9888; 15 open reconciliation breaks &mdash; investigate now
       </div>
     </section>
 

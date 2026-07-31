@@ -5,9 +5,22 @@ import { useAuth } from '@context/AuthContext.jsx';
 
 export function withAuth(Component) {
   function WithAuth(props) {
-    // TODO(TICKET-ADV112): read `user` from useAuth(); if falsy, return
-    //                     <Navigate to="/login" replace />, otherwise render
-    //                     the wrapped <Component {...props} />.
+    const { user, isLoading } = useAuth();
+    const location = useLocation();
+
+    if (isLoading) {
+      return <div>Loading...</div>;
+    }
+
+    if (!user) {
+      return (
+        <Navigate
+          to="/login"
+          replace
+          state={{ from: location.pathname }}
+        />
+      );
+    }
     return <Component {...props} />;
   }
   WithAuth.displayName = `withAuth(${Component.displayName || Component.name || 'Component'})`;

@@ -40,8 +40,7 @@ export const api = {
     return request('GET', `/v1/trades${params ? `?${params}` : ''}`);
   },
   createTrade: (req)         => {
-    // TODO(TICKET-ADV123): POST /v1/trades with the form payload.
-    throw new Error('TICKET-ADV123 not implemented');
+    return request('POST', '/v1/trades', req);
   },
   updateStatus: (id, status) => {
     return request('PATCH', `/v1/trades/${id}/status`, { status });

@@ -1,6 +1,6 @@
 // TICKET-ADV114 — Compound DataTable.
 // TICKET-ADV117 — useDebouncedSearch.
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { withAuth } from '@components/withAuth.jsx';
 import DataTable from '@components/DataTable.jsx';
 import { useDebouncedSearch } from '@hooks/useDebouncedSearch.js';
@@ -11,10 +11,16 @@ function Trades() {
   const debounced = useDebouncedSearch(search, 300);
 
   const [page, setPage] = useState(0);
+  const [selectedId, setSelectedId] = useState(null);
+
   const [data, setData] = useState({
     items: [],
     totalPages: 0,
   });
+
+  const handleSelect = useCallback((id) => {
+    setSelectedId(id);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,22 +36,10 @@ function Trades() {
       .then((res) => {
         if (cancelled) return;
 
-        if (res && Array.isArray(res.items)) {
-          setData({
-            items: res.items,
-            totalPages: res.totalPages ?? 0,
-          });
-        } else if (Array.isArray(res)) {
-          setData({
-            items: res,
-            totalPages: 1,
-          });
-        } else {
-          setData({
-            items: [],
-            totalPages: 0,
-          });
-        }
+        setData({
+          items: res.items ?? [],
+          totalPages: res.totalPages ?? 0,
+        });
       })
       .catch(() => {
         if (!cancelled) {
@@ -75,7 +69,7 @@ function Trades() {
         }}
       />
 
-      <DataTable data={data.items} pageSize={10}>
+      <DataTable data={data.items}>
         <DataTable.Header
           columns={[
             { key: 'tradeRef', label: 'Ref' },
@@ -87,14 +81,11 @@ function Trades() {
         />
 
         <DataTable.Body
-          renderRow={(t) => (
-            <>
-              <span>{t.tradeRef}</span>
-              <span>{t.symbol ?? t.instrument}</span>
-              <span>{t.qty ?? t.quantity}</span>
-              <span>{t.price}</span>
-              <span>{t.status}</span>
-            </>
+          renderRow={(trade) => (
+            <TradeRow
+              trade={trade}
+              onClick={handleSelect}
+            />
           )}
         />
 
@@ -103,5 +94,20 @@ function Trades() {
     </section>
   );
 }
+
+const TradeRow = React.memo(function TradeRow({ trade, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(trade.id)}
+    >
+      <span>{trade.tradeRef}</span>
+      <span>{trade.symbol ?? trade.instrument}</span>
+      <span>{trade.qty ?? trade.quantity}</span>
+      <span>{trade.price}</span>
+      <span>{trade.status}</span>
+    </button>
+  );
+});
 
 export default withAuth(Trades);

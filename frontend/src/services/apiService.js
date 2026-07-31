@@ -38,8 +38,7 @@ export const api = {
     throw new Error('TICKET-ADV072 not implemented');
   },
   listTrades: (params = '')  => {
-    // TODO(TICKET-ADV114): GET /v1/trades + `params` query string.
-    throw new Error('TICKET-ADV114 not implemented');
+    return request('GET', `/v1/trades${params ? `?${params}` : ''}`);
   },
   createTrade: (req)         => {
     // TODO(TICKET-ADV123): POST /v1/trades with the form payload.

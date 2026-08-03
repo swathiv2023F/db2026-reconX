@@ -4,6 +4,7 @@ import com.dbtraining.reconx.dto.TradeEvent;
 import com.dbtraining.reconx.repository.AuditLogRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
@@ -21,7 +22,7 @@ import org.springframework.stereotype.Component;
  * ============================================================================
  *
  *  TODO(TICKET-ADV132):
- *    @KafkaListener(topics = "trade-events", groupId = "audit-service")
+ *    
  *    public void onTradeEvent(TradeEvent e) {
  *        repo.save(new AuditLogEntry(
  *            e.eventId().toString(),
@@ -46,6 +47,7 @@ public class AuditEventConsumer {
 
     public AuditEventConsumer(AuditLogRepository repo) { this.repo = repo; }
 
+    @KafkaListener(topics = "trade-events", groupId = "audit-service")
     public void onTradeEvent(TradeEvent e) {
         throw new UnsupportedOperationException("TICKET-ADV132");
     }
